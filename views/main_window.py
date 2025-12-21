@@ -316,6 +316,19 @@ class MainWindow(QMainWindow):
         task_rows = self.db.get_tasks_by_project(self.current_project.id)
         self.current_tasks = [Task.from_db_row(row) for row in task_rows]
 
+        # 階層構造を構築（childrenリストをクリア）
+        for task in self.current_tasks:
+            task.children = []
+
+        # 親子関係を構築
+        task_dict = {t.id: t for t in self.current_tasks}
+        root_tasks = []
+        for task in self.current_tasks:
+            if task.parent_id and task.parent_id in task_dict:
+                task_dict[task.parent_id].add_child(task)
+            elif task.parent_id is None:
+                root_tasks.append(task)
+
         # 依存関係を読み込み
         from models import TaskDependency
         dep_rows = self.db.get_all_dependencies(self.current_project.id)
@@ -324,8 +337,8 @@ class MainWindow(QMainWindow):
         # ツリービューを更新
         self.task_tree.load_tasks(self.current_tasks)
 
-        # ガントチャートを更新
-        self.gantt_chart.load_tasks(self.current_tasks, dependencies)
+        # ガントチャートを更新（ルートタスクのみ渡す）
+        self.gantt_chart.load_tasks(root_tasks, dependencies)
 
         self.statusBar().showMessage(f"タスク数: {len(self.current_tasks)}")
 
