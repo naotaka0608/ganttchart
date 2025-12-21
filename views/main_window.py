@@ -148,6 +148,7 @@ class MainWindow(QMainWindow):
         self.db = DatabaseManager()
         self.current_project: Optional[Project] = None
         self.current_tasks = []
+        self.is_initial_load = True  # 初回読み込みフラグ
         self.setup_ui()
         self.load_or_create_project()
 
@@ -342,7 +343,12 @@ class MainWindow(QMainWindow):
         self.task_tree.load_tasks(self.current_tasks)
 
         # ガントチャートを更新（ルートタスクのみ渡す）
-        self.gantt_chart.load_tasks(root_tasks, dependencies)
+        # 初回読み込み時のみ今日の位置にスクロール
+        self.gantt_chart.load_tasks(root_tasks, dependencies, scroll_to_today=self.is_initial_load)
+
+        # 初回読み込みフラグをオフ
+        if self.is_initial_load:
+            self.is_initial_load = False
 
         self.statusBar().showMessage(f"タスク数: {len(self.current_tasks)}")
 

@@ -1,6 +1,6 @@
 from PySide6.QtWidgets import (QGraphicsView, QGraphicsScene, QGraphicsRectItem,
                                QGraphicsTextItem, QGraphicsLineItem, QMenu)
-from PySide6.QtCore import Qt, QRectF, QPointF, Signal, QDate
+from PySide6.QtCore import Qt, QRectF, QPointF, Signal, QDate, QTimer
 from PySide6.QtGui import QPen, QBrush, QColor, QPainter, QAction, QCursor
 from typing import List, Dict, Optional
 from datetime import date, timedelta
@@ -82,7 +82,7 @@ class GanttChartWidget(QGraphicsView):
             self.scene.clear()
             self.draw_chart()
 
-    def load_tasks(self, tasks: List[Task], dependencies: List[TaskDependency] = None):
+    def load_tasks(self, tasks: List[Task], dependencies: List[TaskDependency] = None, scroll_to_today: bool = False):
         """タスクをガントチャートに読み込み"""
         self.tasks = tasks
         self.dependencies = dependencies or []
@@ -99,8 +99,9 @@ class GanttChartWidget(QGraphicsView):
         self.scene.clear()
         self.draw_chart()
 
-        # 今日の位置にスクロール
-        self.scroll_to_today()
+        # 必要に応じて今日の位置にスクロール
+        if scroll_to_today:
+            QTimer.singleShot(10, self.scroll_to_today)
 
     def calculate_date_range(self):
         """日付範囲を計算"""
