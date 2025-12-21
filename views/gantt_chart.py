@@ -480,10 +480,11 @@ class GanttChartWidget(QGraphicsView):
                     # 最終的なバーの位置から日付を計算
                     rect = self.dragging_item.rect()
                     start_days = round((rect.x() - self.left_margin) / self.day_width)
-                    end_days = round((rect.x() + rect.width() - self.left_margin) / self.day_width)
+                    duration_days = round(rect.width() / self.day_width)
 
                     new_start = self.min_date + timedelta(days=start_days)
-                    new_end = self.min_date + timedelta(days=end_days)
+                    # duration_daysは(end - start).days + 1なので、end = start + duration - 1
+                    new_end = new_start + timedelta(days=duration_days - 1)
 
                     # 元の日付と異なる場合のみ更新
                     if new_start != self.original_task_dates[0] or new_end != self.original_task_dates[1]:
