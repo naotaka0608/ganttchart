@@ -194,7 +194,7 @@ class MainWindow(QMainWindow):
         splitter.addWidget(self.gantt_chart)
 
         # スプリッター比率
-        splitter.setSizes([300, 900])
+        splitter.setSizes([350, 850])
 
         layout.addWidget(splitter)
 

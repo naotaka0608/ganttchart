@@ -99,6 +99,9 @@ class GanttChartWidget(QGraphicsView):
         self.scene.clear()
         self.draw_chart()
 
+        # 今日の位置にスクロール
+        self.scroll_to_today()
+
     def calculate_date_range(self):
         """日付範囲を計算"""
         if not self.tasks:
@@ -116,6 +119,28 @@ class GanttChartWidget(QGraphicsView):
         self.min_date -= timedelta(days=3)
         self.max_date += timedelta(days=3)
 
+    def scroll_to_today(self):
+        """今日の日付にスクロール"""
+        if not self.min_date or not self.max_date:
+            return
+
+        today = date.today()
+
+        # 今日が表示範囲内にあるかチェック
+        if today < self.min_date or today > self.max_date:
+            return
+
+        # 今日の位置を計算
+        days_from_start = (today - self.min_date).days
+        x_position = self.left_margin + days_from_start * self.day_width
+
+        # ビューの中央に今日を配置（ビュー幅の40%の位置に表示）
+        view_width = self.viewport().width()
+        scroll_x = x_position - view_width * 0.4
+
+        # 水平スクロールバーの位置を設定
+        self.horizontalScrollBar().setValue(int(scroll_x))
+
     def draw_chart(self):
         """チャート全体を描画"""
         if not self.tasks or not self.min_date:
@@ -123,6 +148,9 @@ class GanttChartWidget(QGraphicsView):
 
         # 背景とグリッド
         self.draw_background()
+
+        # 今日の線を描画
+        self.draw_today_line()
 
         # タスクバー
         row = 0
@@ -172,11 +200,12 @@ class GanttChartWidget(QGraphicsView):
         """日単位の背景を描画"""
         current_date = self.min_date
         x = self.left_margin
+        today = date.today()
 
         while current_date <= self.max_date:
-            # 日付テキスト
+            # 日付テキスト（全体的に下に配置）
             text = QGraphicsTextItem(current_date.strftime("%m/%d"))
-            text.setPos(x, 5)
+            text.setPos(x, 18)  # すべての日付を下に配置
             text.setDefaultTextColor(QColor(100, 100, 100))
             font = text.font()
             font.setPointSize(10)
@@ -294,6 +323,39 @@ class GanttChartWidget(QGraphicsView):
             # 次の月へ
             current_month_start = next_month
             x += days_in_month * self.day_width
+
+    def draw_today_line(self):
+        """今日の日付に縦線を描画"""
+        if not self.min_date or not self.max_date:
+            return
+
+        today = date.today()
+
+        # 今日が表示範囲内にあるかチェック
+        if today < self.min_date or today > self.max_date:
+            return
+
+        # 今日の位置を計算
+        days_from_start = (today - self.min_date).days
+        x = self.left_margin + days_from_start * self.day_width
+
+        # 今日の縦線を描画（赤色、太線）
+        line = QGraphicsLineItem(x, 0, x, self.top_margin + 1000)
+        line.setPen(QPen(QColor(244, 67, 54), 2))  # Material Red
+        line.setOpacity(0.7)
+        line.setZValue(100)  # 他の要素より前面に表示
+        self.scene.addItem(line)
+
+        # 「今日」のラベルを追加（日付の上に配置）
+        today_label = QGraphicsTextItem("今日")
+        today_label.setPos(x + 3, 3)  # 上部に配置
+        today_label.setDefaultTextColor(QColor(244, 67, 54))
+        font = today_label.font()
+        font.setPointSize(9)
+        font.setBold(True)
+        today_label.setFont(font)
+        today_label.setZValue(100)
+        self.scene.addItem(today_label)
 
     def draw_task_bar(self, task: Task, row: int):
         """タスクバーを描画"""
