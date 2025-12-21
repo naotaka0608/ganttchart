@@ -222,6 +222,13 @@ class MainWindow(QMainWindow):
 
         toolbar.addSeparator()
 
+        # Excel出力
+        export_action = QAction("Excel出力", self)
+        export_action.triggered.connect(self.export_to_excel)
+        toolbar.addAction(export_action)
+
+        toolbar.addSeparator()
+
         # 更新
         refresh_action = QAction("更新", self)
         refresh_action.triggered.connect(self.refresh_view)
@@ -480,6 +487,41 @@ class MainWindow(QMainWindow):
         # ビューを更新
         self.refresh_view()
         self.statusBar().showMessage("タスクの順序を変更しました")
+
+    def export_to_excel(self):
+        """タスクリストとガントチャートをExcelファイルにエクスポート"""
+        from PySide6.QtWidgets import QFileDialog, QMessageBox
+        from views.excel_exporter import ExcelExporter
+        from datetime import datetime
+
+        # ファイル保存ダイアログ
+        default_filename = f"ガントチャート_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Excelファイルとして保存",
+            default_filename,
+            "Excel Files (*.xlsx)"
+        )
+
+        if not file_path:
+            return  # キャンセルされた
+
+        try:
+            # Excelエクスポーターを使用してエクスポート
+            exporter = ExcelExporter(self.current_tasks)
+            exporter.export(file_path)
+
+            self.statusBar().showMessage(f"Excelファイルを保存しました: {file_path}")
+            QMessageBox.information(
+                self,
+                "エクスポート完了",
+                f"タスクリストとガントチャートをExcelファイルに出力しました。\n\n{file_path}"
+            )
+
+        except Exception as e:
+            QMessageBox.critical(self, "エラー", f"Excelファイルの出力に失敗しました:\n{str(e)}")
+            import traceback
+            traceback.print_exc()
 
     def closeEvent(self, event):
         """ウィンドウクローズ時"""
