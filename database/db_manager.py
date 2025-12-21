@@ -27,6 +27,8 @@ class DatabaseManager:
         self._migrate_add_color_column()
         # マイグレーション: assignee列が存在しない場合は追加
         self._migrate_add_assignee_column()
+        # マイグレーション: baseline列が存在しない場合は追加
+        self._migrate_add_baseline_columns()
 
     def _migrate_add_color_column(self):
         """マイグレーション: tasksテーブルにcolor列を追加"""
@@ -55,6 +57,27 @@ class DatabaseManager:
             if 'assignee' not in columns:
                 # assignee列を追加
                 cursor.execute("ALTER TABLE tasks ADD COLUMN assignee TEXT DEFAULT NULL")
+                self.connection.commit()
+        except sqlite3.Error:
+            # エラーが発生しても続行（テーブルが存在しない場合など）
+            pass
+
+    def _migrate_add_baseline_columns(self):
+        """マイグレーション: tasksテーブルにbaseline列を追加"""
+        cursor = self.connection.cursor()
+        try:
+            # baseline列が既に存在するかチェック
+            cursor.execute("PRAGMA table_info(tasks)")
+            columns = [row[1] for row in cursor.fetchall()]
+
+            if 'baseline_start_date' not in columns:
+                # baseline_start_date列を追加
+                cursor.execute("ALTER TABLE tasks ADD COLUMN baseline_start_date DATE DEFAULT NULL")
+                self.connection.commit()
+
+            if 'baseline_end_date' not in columns:
+                # baseline_end_date列を追加
+                cursor.execute("ALTER TABLE tasks ADD COLUMN baseline_end_date DATE DEFAULT NULL")
                 self.connection.commit()
         except sqlite3.Error:
             # エラーが発生しても続行（テーブルが存在しない場合など）
@@ -128,7 +151,8 @@ class DatabaseManager:
     def update_task(self, task_id: int, **kwargs):
         """タスク更新"""
         allowed_fields = ['name', 'description', 'start_date', 'end_date', 'progress',
-                         'is_milestone', 'is_expanded', 'parent_id', 'sort_order', 'color', 'assignee']
+                         'is_milestone', 'is_expanded', 'parent_id', 'sort_order', 'color', 'assignee',
+                         'baseline_start_date', 'baseline_end_date']
 
         updates = []
         values = []
@@ -147,6 +171,24 @@ class DatabaseManager:
         """タスク削除"""
         self.connection.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
         self.connection.commit()
+
+    def set_baseline(self, task_id: int):
+        """現在の日付をベースラインとして設定"""
+        task = self.get_task(task_id)
+        if task:
+            self.update_task(
+                task_id,
+                baseline_start_date=task['start_date'],
+                baseline_end_date=task['end_date']
+            )
+
+    def clear_baseline(self, task_id: int):
+        """ベースラインをクリア"""
+        self.update_task(
+            task_id,
+            baseline_start_date=None,
+            baseline_end_date=None
+        )
 
     def get_child_tasks(self, parent_id: int) -> List[sqlite3.Row]:
         """子タスク取得"""

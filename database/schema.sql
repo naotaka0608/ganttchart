@@ -22,6 +22,8 @@ CREATE TABLE IF NOT EXISTS tasks (
     sort_order INTEGER DEFAULT 0,  -- 表示順序
     color TEXT DEFAULT NULL,  -- タスクバーの色 (16進数カラーコード)
     assignee TEXT DEFAULT NULL,  -- 担当者
+    baseline_start_date DATE DEFAULT NULL,  -- ベースライン開始日
+    baseline_end_date DATE DEFAULT NULL,  -- ベースライン終了日
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,

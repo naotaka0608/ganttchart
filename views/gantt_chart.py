@@ -343,6 +343,40 @@ class GanttChartWidget(QGraphicsView):
             self.scene.addItem(progress_bar)
             self.progress_bars[task.id] = progress_bar
 
+        # ベースラインバー（当初予定）
+        if task.has_baseline and not task.is_milestone:
+            baseline_start_x = self.left_margin + (task.baseline_start_date - self.min_date).days * self.day_width
+            baseline_duration = (task.baseline_end_date - task.baseline_start_date).days + 1
+            baseline_width = baseline_duration * self.day_width
+            baseline_y = y + height + 2  # タスクバーの下に配置
+            baseline_height = 4  # 薄いバー
+
+            # ベースラインバー（薄いグレー）
+            baseline_bar = QGraphicsRectItem(baseline_start_x, baseline_y, baseline_width, baseline_height)
+            baseline_bar.setBrush(QBrush(QColor(150, 150, 150)))
+            baseline_bar.setPen(QPen(Qt.PenStyle.NoPen))
+            baseline_bar.setOpacity(0.6)
+            self.scene.addItem(baseline_bar)
+
+            # 差分の表示（遅延は赤、前倒しは緑）
+            if task.end_variance_days != 0:
+                # 終了日の差分を視覚化
+                if task.end_variance_days > 0:
+                    # 遅延（赤）: ベースライン終了日から現在の終了日まで
+                    variance_start_x = baseline_start_x + baseline_width
+                    variance_width = task.end_variance_days * self.day_width
+                    variance_color = QColor(244, 67, 54, 100)  # 半透明の赤
+                else:
+                    # 前倒し（緑）: 現在の終了日からベースライン終了日まで
+                    variance_start_x = start_x + width
+                    variance_width = abs(task.end_variance_days) * self.day_width
+                    variance_color = QColor(76, 175, 80, 100)  # 半透明の緑
+
+                variance_bar = QGraphicsRectItem(variance_start_x, baseline_y, variance_width, baseline_height)
+                variance_bar.setBrush(QBrush(variance_color))
+                variance_bar.setPen(QPen(Qt.PenStyle.NoPen))
+                self.scene.addItem(variance_bar)
+
         # タスク名
         text = QGraphicsTextItem(task.name)
         text.setPos(start_x + 5, y + 5)
@@ -366,6 +400,7 @@ class GanttChartWidget(QGraphicsView):
             progress_text_offset = 50  # 進捗率テキストの幅分オフセット
 
         # 担当者テキスト
+        assignee_text_offset = progress_text_offset
         if task.assignee:
             assignee_text = QGraphicsTextItem(f"[{task.assignee}]")
             assignee_text.setPos(start_x + width + 5 + progress_text_offset, y + 5)
@@ -374,6 +409,24 @@ class GanttChartWidget(QGraphicsView):
             font.setPointSize(9)
             assignee_text.setFont(font)
             self.scene.addItem(assignee_text)
+            assignee_text_offset += 80  # 担当者テキストの幅分オフセット
+
+        # 差分テキスト（遅延・前倒し）
+        if task.has_baseline and task.end_variance_days != 0:
+            if task.end_variance_days > 0:
+                variance_text = QGraphicsTextItem(f"+{task.end_variance_days}日遅延")
+                variance_color = QColor(244, 67, 54)  # 赤
+            else:
+                variance_text = QGraphicsTextItem(f"{task.end_variance_days}日前倒し")
+                variance_color = QColor(76, 175, 80)  # 緑
+
+            variance_text.setPos(start_x + width + 5 + assignee_text_offset, y + 5)
+            variance_text.setDefaultTextColor(variance_color)
+            font = variance_text.font()
+            font.setPointSize(9)
+            font.setBold(True)
+            variance_text.setFont(font)
+            self.scene.addItem(variance_text)
 
     def draw_dependency_arrow(self, predecessor_id: int, successor_id: int, task_rows: Dict[int, int]):
         """依存関係の矢印を描画"""

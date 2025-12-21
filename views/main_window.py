@@ -179,6 +179,8 @@ class MainWindow(QMainWindow):
         self.task_tree.task_add_root_requested.connect(self.add_new_task)
         self.task_tree.task_add_child_requested.connect(self.add_child_task)
         self.task_tree.task_edit_requested.connect(self.edit_task)
+        self.task_tree.task_set_baseline_requested.connect(self.set_baseline)
+        self.task_tree.task_clear_baseline_requested.connect(self.clear_baseline)
         splitter.addWidget(self.task_tree)
 
         # 右側：ガントチャート
@@ -437,6 +439,22 @@ class MainWindow(QMainWindow):
         task = next((t for t in self.current_tasks if t.id == task_id), None)
         if task:
             self.statusBar().showMessage(f"タスク '{task.name}' の進捗率を{progress}%に更新しました")
+
+    def set_baseline(self, task_id: int):
+        """ベースライン設定"""
+        self.db.set_baseline(task_id)
+        self.refresh_view()
+        task = next((t for t in self.current_tasks if t.id == task_id), None)
+        if task:
+            self.statusBar().showMessage(f"タスク '{task.name}' のベースラインを設定しました")
+
+    def clear_baseline(self, task_id: int):
+        """ベースラインクリア"""
+        self.db.clear_baseline(task_id)
+        self.refresh_view()
+        task = next((t for t in self.current_tasks if t.id == task_id), None)
+        if task:
+            self.statusBar().showMessage(f"タスク '{task.name}' のベースラインをクリアしました")
 
     def on_task_deleted(self, task_id: int):
         """タスク削除時"""

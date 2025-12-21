@@ -15,6 +15,8 @@ class TaskTreeWidget(QTreeWidget):
     task_add_root_requested = Signal()
     task_add_child_requested = Signal(int)  # parent_id
     task_edit_requested = Signal(int)  # task_id
+    task_set_baseline_requested = Signal(int)  # task_id
+    task_clear_baseline_requested = Signal(int)  # task_id
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -145,6 +147,20 @@ class TaskTreeWidget(QTreeWidget):
             edit_action.triggered.connect(lambda: self.edit_task(task_id))
             menu.addAction(edit_action)
 
+            menu.addSeparator()
+
+            # ベースライン設定
+            set_baseline_action = QAction("ベースライン設定", self)
+            set_baseline_action.triggered.connect(lambda: self.set_baseline(task_id))
+            menu.addAction(set_baseline_action)
+
+            # ベースラインクリア
+            clear_baseline_action = QAction("ベースラインクリア", self)
+            clear_baseline_action.triggered.connect(lambda: self.clear_baseline(task_id))
+            menu.addAction(clear_baseline_action)
+
+            menu.addSeparator()
+
             # 削除
             delete_action = QAction("削除", self)
             delete_action.triggered.connect(lambda: self.delete_task(task_id))
@@ -163,6 +179,14 @@ class TaskTreeWidget(QTreeWidget):
     def edit_task(self, task_id: int):
         """タスク編集"""
         self.task_edit_requested.emit(task_id)
+
+    def set_baseline(self, task_id: int):
+        """ベースライン設定"""
+        self.task_set_baseline_requested.emit(task_id)
+
+    def clear_baseline(self, task_id: int):
+        """ベースラインクリア"""
+        self.task_clear_baseline_requested.emit(task_id)
 
     def delete_task(self, task_id: int):
         """タスク削除"""
