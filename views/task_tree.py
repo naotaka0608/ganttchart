@@ -1,7 +1,7 @@
 from PySide6.QtWidgets import (QTreeWidget, QTreeWidgetItem, QMenu, QInputDialog,
                                QMessageBox, QHeaderView)
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QAction
+from PySide6.QtGui import QAction, QDropEvent
 from typing import Dict, List, Optional
 from models import Task
 
@@ -17,6 +17,7 @@ class TaskTreeWidget(QTreeWidget):
     task_edit_requested = Signal(int)  # task_id
     task_set_baseline_requested = Signal(int)  # task_id
     task_clear_baseline_requested = Signal(int)  # task_id
+    task_order_changed = Signal()  # タスク順序変更
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -217,3 +218,39 @@ class TaskTreeWidget(QTreeWidget):
         if item:
             return item.data(0, Qt.ItemDataRole.UserRole)
         return None
+
+    def dropEvent(self, event: QDropEvent):
+        """ドロップイベント - タスクの順序変更を処理"""
+        # 元のドロップ処理を実行
+        super().dropEvent(event)
+
+        # 順序変更シグナルを発火
+        self.task_order_changed.emit()
+
+    def get_task_order(self) -> List[tuple]:
+        """現在のタスク順序を取得 [(task_id, parent_id, sort_order), ...]"""
+        order_list = []
+
+        def traverse_items(parent_item, parent_id):
+            """アイテムを再帰的に走査して順序を取得"""
+            if parent_item is None:
+                # ルートレベル
+                count = self.topLevelItemCount()
+                for i in range(count):
+                    item = self.topLevelItem(i)
+                    task_id = item.data(0, Qt.ItemDataRole.UserRole)
+                    order_list.append((task_id, None, i))
+                    # 子アイテムを処理
+                    traverse_items(item, task_id)
+            else:
+                # 子レベル
+                count = parent_item.childCount()
+                for i in range(count):
+                    item = parent_item.child(i)
+                    task_id = item.data(0, Qt.ItemDataRole.UserRole)
+                    order_list.append((task_id, parent_id, i))
+                    # 子アイテムを処理
+                    traverse_items(item, task_id)
+
+        traverse_items(None, None)
+        return order_list

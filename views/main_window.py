@@ -181,6 +181,7 @@ class MainWindow(QMainWindow):
         self.task_tree.task_edit_requested.connect(self.edit_task)
         self.task_tree.task_set_baseline_requested.connect(self.set_baseline)
         self.task_tree.task_clear_baseline_requested.connect(self.clear_baseline)
+        self.task_tree.task_order_changed.connect(self.on_task_order_changed)
         splitter.addWidget(self.task_tree)
 
         # 右側：ガントチャート
@@ -204,13 +205,6 @@ class MainWindow(QMainWindow):
         """ツールバー作成"""
         toolbar = QToolBar("メインツールバー")
         self.addToolBar(toolbar)
-
-        # 新規タスク
-        new_task_action = QAction("新規タスク", self)
-        new_task_action.triggered.connect(self.add_new_task)
-        toolbar.addAction(new_task_action)
-
-        toolbar.addSeparator()
 
         # 表示モード切替
         day_view_action = QAction("日表示", self)
@@ -354,25 +348,31 @@ class MainWindow(QMainWindow):
 
     def add_new_task(self, parent_id: Optional[int] = None):
         """新規タスク追加"""
-        dialog = TaskDialog(self)
-        if dialog.exec() == QDialog.DialogCode.Accepted:
-            data = dialog.get_task_data()
+        try:
+            dialog = TaskDialog(self)
+            if dialog.exec() == QDialog.DialogCode.Accepted:
+                data = dialog.get_task_data()
 
-            task_id = self.db.create_task(
-                self.current_project.id,
-                data['name'],
-                str(data['start_date']),
-                str(data['end_date']),
-                parent_id=parent_id,
-                description=data['description'],
-                progress=data['progress'],
-                is_milestone=data['is_milestone'],
-                color=data['color'],
-                assignee=data['assignee']
-            )
+                task_id = self.db.create_task(
+                    self.current_project.id,
+                    data['name'],
+                    str(data['start_date']),
+                    str(data['end_date']),
+                    parent_id=parent_id,
+                    description=data['description'],
+                    progress=data['progress'],
+                    is_milestone=data['is_milestone'],
+                    color=data['color'],
+                    assignee=data['assignee']
+                )
 
-            self.refresh_view()
-            self.statusBar().showMessage(f"タスク '{data['name']}' を追加しました")
+                self.refresh_view()
+                self.statusBar().showMessage(f"タスク '{data['name']}' を追加しました")
+        except Exception as e:
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.critical(self, "エラー", f"タスクの追加に失敗しました:\n{str(e)}")
+            import traceback
+            traceback.print_exc()
 
     def add_child_task(self, parent_id: int):
         """子タスク追加"""
@@ -461,6 +461,19 @@ class MainWindow(QMainWindow):
         self.db.delete_task(task_id)
         self.refresh_view()
         self.statusBar().showMessage("タスクを削除しました")
+
+    def on_task_order_changed(self):
+        """タスク順序変更時"""
+        # ツリーから現在の順序を取得
+        order_list = self.task_tree.get_task_order()
+
+        # データベースに順序とparent_idを更新
+        for task_id, parent_id, sort_order in order_list:
+            self.db.update_task(task_id, parent_id=parent_id, sort_order=sort_order)
+
+        # ビューを更新
+        self.refresh_view()
+        self.statusBar().showMessage("タスクの順序を変更しました")
 
     def closeEvent(self, event):
         """ウィンドウクローズ時"""
