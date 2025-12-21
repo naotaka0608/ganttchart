@@ -178,6 +178,7 @@ class MainWindow(QMainWindow):
         self.gantt_chart = GanttChartWidget()
         self.gantt_chart.task_clicked.connect(self.on_task_selected)
         self.gantt_chart.task_date_changed.connect(self.on_task_date_changed)
+        self.gantt_chart.task_progress_changed.connect(self.on_task_progress_changed)
         self.gantt_chart.task_edit_requested.connect(self.edit_task)
         self.gantt_chart.task_delete_requested.connect(self.on_task_deleted)
         splitter.addWidget(self.gantt_chart)
@@ -416,6 +417,17 @@ class MainWindow(QMainWindow):
         task = next((t for t in self.current_tasks if t.id == task_id), None)
         if task:
             self.statusBar().showMessage(f"タスク '{task.name}' の日付を更新しました")
+
+    def on_task_progress_changed(self, task_id: int, progress: int):
+        """タスクの進捗率変更時（ドラッグ&ドロップ）"""
+        self.db.update_task(
+            task_id,
+            progress=progress
+        )
+        self.refresh_view()
+        task = next((t for t in self.current_tasks if t.id == task_id), None)
+        if task:
+            self.statusBar().showMessage(f"タスク '{task.name}' の進捗率を{progress}%に更新しました")
 
     def on_task_deleted(self, task_id: int):
         """タスク削除時"""

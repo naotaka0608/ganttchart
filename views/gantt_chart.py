@@ -12,6 +12,7 @@ class GanttChartWidget(QGraphicsView):
 
     task_clicked = Signal(int)  # タスクID
     task_date_changed = Signal(int, str, str)  # task_id, start_date, end_date
+    task_progress_changed = Signal(int, int)  # task_id, progress
     task_edit_requested = Signal(int)  # タスクID
     task_delete_requested = Signal(int)  # タスクID
 
@@ -23,6 +24,7 @@ class GanttChartWidget(QGraphicsView):
         self.tasks: List[Task] = []
         self.dependencies: List[TaskDependency] = []
         self.task_bars: Dict[int, QGraphicsRectItem] = {}  # task_id -> bar
+        self.progress_bars: Dict[int, QGraphicsRectItem] = {}  # task_id -> progress_bar
 
         # 表示モード: 'day', 'week', 'month'
         self.view_mode = 'day'
@@ -38,9 +40,10 @@ class GanttChartWidget(QGraphicsView):
         # ドラッグ中のアイテム
         self.dragging_item: Optional[QGraphicsRectItem] = None
         self.drag_start_pos: Optional[QPointF] = None
-        self.drag_mode: str = None  # 'move', 'resize_left', 'resize_right'
+        self.drag_mode: str = None  # 'move', 'resize_left', 'resize_right', 'progress'
         self.resize_edge_margin = 10  # リサイズ可能な端のマージン
         self.original_task_dates = None  # ドラッグ開始時のタスク日付を保存
+        self.original_progress = None  # ドラッグ開始時の進捗率を保存
         self.has_moved = False  # マウスが実際に移動したかを追跡
 
         self.setup_ui()
@@ -335,7 +338,10 @@ class GanttChartWidget(QGraphicsView):
             progress_bar.setBrush(QBrush(darker_color))
             progress_bar.setPen(QPen(Qt.PenStyle.NoPen))
             progress_bar.setOpacity(0.7)
+            progress_bar.setData(0, task.id)  # タスクIDを保存
+            progress_bar.setData(1, "progress")  # 進捗バーであることを示す
             self.scene.addItem(progress_bar)
+            self.progress_bars[task.id] = progress_bar
 
         # タスク名
         text = QGraphicsTextItem(task.name)
@@ -389,34 +395,49 @@ class GanttChartWidget(QGraphicsView):
 
             if item and isinstance(item, QGraphicsRectItem):
                 task_id = item.data(0)
+                item_type = item.data(1)
+
                 if task_id:
                     self.task_clicked.emit(task_id)
 
-                    # ドラッグモード判定
-                    rect = item.rect()
-                    local_x = scene_pos.x() - rect.x()
+                    # 進捗バーをクリックした場合
+                    if item_type == "progress":
+                        self.drag_mode = 'progress'
+                        self.setCursor(QCursor(Qt.CursorShape.SizeHorCursor))
+                        self.dragging_item = item
+                        self.drag_start_pos = scene_pos
+                        self.has_moved = False
 
-                    if local_x < self.resize_edge_margin:
-                        # 左端リサイズ
-                        self.drag_mode = 'resize_left'
-                        self.setCursor(QCursor(Qt.CursorShape.SizeHorCursor))
-                    elif local_x > rect.width() - self.resize_edge_margin:
-                        # 右端リサイズ
-                        self.drag_mode = 'resize_right'
-                        self.setCursor(QCursor(Qt.CursorShape.SizeHorCursor))
+                        # 元の進捗率を保存
+                        task = next((t for t in self._flatten_tasks(self.tasks) if t.id == task_id), None)
+                        if task:
+                            self.original_progress = task.progress
                     else:
-                        # 移動
-                        self.drag_mode = 'move'
-                        self.setCursor(QCursor(Qt.CursorShape.ClosedHandCursor))
+                        # タスクバーをクリックした場合
+                        rect = item.rect()
+                        local_x = scene_pos.x() - rect.x()
 
-                    self.dragging_item = item
-                    self.drag_start_pos = scene_pos
-                    self.has_moved = False  # リセット
+                        if local_x < self.resize_edge_margin:
+                            # 左端リサイズ
+                            self.drag_mode = 'resize_left'
+                            self.setCursor(QCursor(Qt.CursorShape.SizeHorCursor))
+                        elif local_x > rect.width() - self.resize_edge_margin:
+                            # 右端リサイズ
+                            self.drag_mode = 'resize_right'
+                            self.setCursor(QCursor(Qt.CursorShape.SizeHorCursor))
+                        else:
+                            # 移動
+                            self.drag_mode = 'move'
+                            self.setCursor(QCursor(Qt.CursorShape.ClosedHandCursor))
 
-                    # 元のタスク日付を保存
-                    task = next((t for t in self._flatten_tasks(self.tasks) if t.id == task_id), None)
-                    if task:
-                        self.original_task_dates = (task.start_date, task.end_date)
+                        self.dragging_item = item
+                        self.drag_start_pos = scene_pos
+                        self.has_moved = False  # リセット
+
+                        # 元のタスク日付を保存
+                        task = next((t for t in self._flatten_tasks(self.tasks) if t.id == task_id), None)
+                        if task:
+                            self.original_task_dates = (task.start_date, task.end_date)
 
         super().mousePressEvent(event)
 
@@ -424,7 +445,7 @@ class GanttChartWidget(QGraphicsView):
         """マウス移動"""
         scene_pos = self.mapToScene(event.pos())
 
-        if self.dragging_item and self.drag_start_pos and self.original_task_dates:
+        if self.dragging_item and self.drag_start_pos and (self.original_task_dates or self.original_progress is not None):
             delta_x = scene_pos.x() - self.drag_start_pos.x()
 
             # 少しでも動いたらフラグを立てる（3ピクセル以上の移動）
@@ -454,6 +475,26 @@ class GanttChartWidget(QGraphicsView):
                 if new_width > self.day_width:  # 最小1日
                     self.dragging_item.setRect(rect.x(), rect.y(), new_width, rect.height())
                     self.drag_start_pos = scene_pos
+
+            elif self.drag_mode == 'progress':
+                # 進捗バーをリサイズ
+                task_id = self.dragging_item.data(0)
+                task_bar = self.task_bars.get(task_id)
+                if task_bar:
+                    task_bar_rect = task_bar.rect()
+                    # 進捗バーの新しい幅を計算
+                    new_progress_x = scene_pos.x()
+                    # タスクバーの範囲内に制限
+                    if new_progress_x < task_bar_rect.x():
+                        new_progress_x = task_bar_rect.x()
+                    elif new_progress_x > task_bar_rect.x() + task_bar_rect.width():
+                        new_progress_x = task_bar_rect.x() + task_bar_rect.width()
+
+                    new_progress_width = new_progress_x - task_bar_rect.x()
+                    self.dragging_item.setRect(task_bar_rect.x(), rect.y(), new_progress_width, rect.height())
+
+                    if abs(delta_x) > 3:
+                        self.has_moved = True
         else:
             # ホバー時のカーソル変更
             item = self.scene.itemAt(scene_pos, self.transform())
@@ -474,26 +515,43 @@ class GanttChartWidget(QGraphicsView):
         """マウスリリース"""
         if event.button() == Qt.MouseButton.LeftButton:
             # 実際にドラッグした場合のみ更新
-            if self.dragging_item and self.original_task_dates and self.has_moved:
+            if self.dragging_item and self.has_moved:
                 task_id = self.dragging_item.data(0)
+
                 if task_id:
-                    # 最終的なバーの位置から日付を計算
-                    rect = self.dragging_item.rect()
-                    start_days = round((rect.x() - self.left_margin) / self.day_width)
-                    duration_days = round(rect.width() / self.day_width)
+                    if self.drag_mode == 'progress' and self.original_progress is not None:
+                        # 進捗率の更新
+                        task_bar = self.task_bars.get(task_id)
+                        if task_bar:
+                            task_bar_rect = task_bar.rect()
+                            progress_rect = self.dragging_item.rect()
 
-                    new_start = self.min_date + timedelta(days=start_days)
-                    # duration_daysは(end - start).days + 1なので、end = start + duration - 1
-                    new_end = new_start + timedelta(days=duration_days - 1)
+                            # 進捗率を計算（0-100%）
+                            new_progress = int((progress_rect.width() / task_bar_rect.width()) * 100)
+                            new_progress = max(0, min(100, new_progress))  # 0-100の範囲に制限
 
-                    # 元の日付と異なる場合のみ更新
-                    if new_start != self.original_task_dates[0] or new_end != self.original_task_dates[1]:
-                        self.task_date_changed.emit(task_id, str(new_start), str(new_end))
+                            if new_progress != self.original_progress:
+                                self.task_progress_changed.emit(task_id, new_progress)
+
+                    elif self.original_task_dates:
+                        # 日付の更新
+                        rect = self.dragging_item.rect()
+                        start_days = round((rect.x() - self.left_margin) / self.day_width)
+                        duration_days = round(rect.width() / self.day_width)
+
+                        new_start = self.min_date + timedelta(days=start_days)
+                        # duration_daysは(end - start).days + 1なので、end = start + duration - 1
+                        new_end = new_start + timedelta(days=duration_days - 1)
+
+                        # 元の日付と異なる場合のみ更新
+                        if new_start != self.original_task_dates[0] or new_end != self.original_task_dates[1]:
+                            self.task_date_changed.emit(task_id, str(new_start), str(new_end))
 
             self.dragging_item = None
             self.drag_start_pos = None
             self.drag_mode = None
             self.original_task_dates = None
+            self.original_progress = None
             self.has_moved = False
             self.setCursor(QCursor(Qt.CursorShape.ArrowCursor))
 
