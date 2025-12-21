@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS tasks (
     is_expanded BOOLEAN DEFAULT 1,  -- 展開状態
     sort_order INTEGER DEFAULT 0,  -- 表示順序
     color TEXT DEFAULT NULL,  -- タスクバーの色 (16進数カラーコード)
+    assignee TEXT DEFAULT NULL,  -- 担当者
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,

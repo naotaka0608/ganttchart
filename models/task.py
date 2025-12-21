@@ -18,6 +18,7 @@ class Task:
     is_expanded: bool = True
     sort_order: int = 0
     color: Optional[str] = None
+    assignee: Optional[str] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
@@ -29,10 +30,16 @@ class Task:
         """データベース行からインスタンス生成"""
         # sqlite3.Rowの列名をチェック
         color = None
+        assignee = None
         try:
             color = row['color']
         except (KeyError, IndexError):
             pass  # color列が存在しない場合はNoneのまま
+
+        try:
+            assignee = row['assignee']
+        except (KeyError, IndexError):
+            pass  # assignee列が存在しない場合はNoneのまま
 
         return cls(
             id=row['id'],
@@ -47,6 +54,7 @@ class Task:
             is_expanded=bool(row['is_expanded']),
             sort_order=row['sort_order'],
             color=color,
+            assignee=assignee,
             created_at=datetime.fromisoformat(row['created_at']) if row['created_at'] else None,
             updated_at=datetime.fromisoformat(row['updated_at']) if row['updated_at'] else None
         )

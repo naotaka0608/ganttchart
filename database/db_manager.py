@@ -25,6 +25,8 @@ class DatabaseManager:
 
         # マイグレーション: color列が存在しない場合は追加
         self._migrate_add_color_column()
+        # マイグレーション: assignee列が存在しない場合は追加
+        self._migrate_add_assignee_column()
 
     def _migrate_add_color_column(self):
         """マイグレーション: tasksテーブルにcolor列を追加"""
@@ -37,6 +39,22 @@ class DatabaseManager:
             if 'color' not in columns:
                 # color列を追加
                 cursor.execute("ALTER TABLE tasks ADD COLUMN color TEXT DEFAULT NULL")
+                self.connection.commit()
+        except sqlite3.Error:
+            # エラーが発生しても続行（テーブルが存在しない場合など）
+            pass
+
+    def _migrate_add_assignee_column(self):
+        """マイグレーション: tasksテーブルにassignee列を追加"""
+        cursor = self.connection.cursor()
+        try:
+            # assignee列が既に存在するかチェック
+            cursor.execute("PRAGMA table_info(tasks)")
+            columns = [row[1] for row in cursor.fetchall()]
+
+            if 'assignee' not in columns:
+                # assignee列を追加
+                cursor.execute("ALTER TABLE tasks ADD COLUMN assignee TEXT DEFAULT NULL")
                 self.connection.commit()
         except sqlite3.Error:
             # エラーが発生しても続行（テーブルが存在しない場合など）
@@ -83,12 +101,13 @@ class DatabaseManager:
     # タスク関連メソッド
     def create_task(self, project_id: int, name: str, start_date: str, end_date: str,
                    parent_id: Optional[int] = None, description: str = "",
-                   progress: int = 0, is_milestone: bool = False, color: Optional[str] = None) -> int:
+                   progress: int = 0, is_milestone: bool = False, color: Optional[str] = None,
+                   assignee: Optional[str] = None) -> int:
         """新規タスク作成"""
         cursor = self.connection.execute(
-            """INSERT INTO tasks (project_id, parent_id, name, description, start_date, end_date, progress, is_milestone, color)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (project_id, parent_id, name, description, start_date, end_date, progress, is_milestone, color)
+            """INSERT INTO tasks (project_id, parent_id, name, description, start_date, end_date, progress, is_milestone, color, assignee)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (project_id, parent_id, name, description, start_date, end_date, progress, is_milestone, color, assignee)
         )
         self.connection.commit()
         return cursor.lastrowid
@@ -109,7 +128,7 @@ class DatabaseManager:
     def update_task(self, task_id: int, **kwargs):
         """タスク更新"""
         allowed_fields = ['name', 'description', 'start_date', 'end_date', 'progress',
-                         'is_milestone', 'is_expanded', 'parent_id', 'sort_order', 'color']
+                         'is_milestone', 'is_expanded', 'parent_id', 'sort_order', 'color', 'assignee']
 
         updates = []
         values = []

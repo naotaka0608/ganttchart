@@ -97,6 +97,12 @@ class TaskDialog(QDialog):
 
         layout.addRow("タスクバーの色:", color_layout)
 
+        # 担当者
+        self.assignee_edit = QLineEdit()
+        if self.task:
+            self.assignee_edit.setText(self.task.assignee or "")
+        layout.addRow("担当者:", self.assignee_edit)
+
         # ボタン
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
@@ -129,7 +135,8 @@ class TaskDialog(QDialog):
             'end_date': self.end_date_edit.date().toPython(),
             'progress': self.progress_spin.value(),
             'is_milestone': self.milestone_check.isChecked(),
-            'color': self.selected_color
+            'color': self.selected_color,
+            'assignee': self.assignee_edit.text() or None
         }
 
 
@@ -358,7 +365,8 @@ class MainWindow(QMainWindow):
                 description=data['description'],
                 progress=data['progress'],
                 is_milestone=data['is_milestone'],
-                color=data['color']
+                color=data['color'],
+                assignee=data['assignee']
             )
 
             self.refresh_view()
@@ -392,7 +400,8 @@ class MainWindow(QMainWindow):
                 end_date=str(data['end_date']),
                 progress=data['progress'],
                 is_milestone=data['is_milestone'],
-                color=data['color']
+                color=data['color'],
+                assignee=data['assignee']
             )
 
             self.refresh_view()

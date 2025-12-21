@@ -23,11 +23,12 @@ class TaskTreeWidget(QTreeWidget):
 
     def setup_ui(self):
         """UI初期化"""
-        self.setHeaderLabels(["タスク名", "進捗率", "開始日", "終了日"])
+        self.setHeaderLabels(["タスク名", "進捗率", "開始日", "終了日", "担当者"])
         self.setColumnWidth(0, 200)
         self.setColumnWidth(1, 60)
         self.setColumnWidth(2, 90)
         self.setColumnWidth(3, 90)
+        self.setColumnWidth(4, 100)
 
         # ドラッグ&ドロップ有効化
         self.setDragEnabled(True)
@@ -81,6 +82,7 @@ class TaskTreeWidget(QTreeWidget):
         item.setText(1, f"{task.progress}%")
         item.setText(2, task.start_date.strftime("%Y-%m-%d"))
         item.setText(3, task.end_date.strftime("%Y-%m-%d"))
+        item.setText(4, task.assignee or "")
 
         # タスクIDをデータとして保存
         item.setData(0, Qt.ItemDataRole.UserRole, task.id)
@@ -183,6 +185,7 @@ class TaskTreeWidget(QTreeWidget):
             item.setText(1, f"{task.progress}%")
             item.setText(2, task.start_date.strftime("%Y-%m-%d"))
             item.setText(3, task.end_date.strftime("%Y-%m-%d"))
+            item.setText(4, task.assignee or "")
 
     def get_selected_task_id(self) -> Optional[int]:
         """選択中のタスクIDを取得"""

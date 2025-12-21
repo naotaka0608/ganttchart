@@ -354,6 +354,7 @@ class GanttChartWidget(QGraphicsView):
         self.scene.addItem(text)
 
         # 進捗率テキスト
+        progress_text_offset = 0
         if task.progress > 0:
             progress_text = QGraphicsTextItem(f"{task.progress}%")
             progress_text.setPos(start_x + width + 5, y + 5)
@@ -362,6 +363,17 @@ class GanttChartWidget(QGraphicsView):
             font.setPointSize(9)
             progress_text.setFont(font)
             self.scene.addItem(progress_text)
+            progress_text_offset = 50  # 進捗率テキストの幅分オフセット
+
+        # 担当者テキスト
+        if task.assignee:
+            assignee_text = QGraphicsTextItem(f"[{task.assignee}]")
+            assignee_text.setPos(start_x + width + 5 + progress_text_offset, y + 5)
+            assignee_text.setDefaultTextColor(QColor(100, 100, 100))
+            font = assignee_text.font()
+            font.setPointSize(9)
+            assignee_text.setFont(font)
+            self.scene.addItem(assignee_text)
 
     def draw_dependency_arrow(self, predecessor_id: int, successor_id: int, task_rows: Dict[int, int]):
         """依存関係の矢印を描画"""
