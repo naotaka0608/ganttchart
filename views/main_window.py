@@ -202,6 +202,21 @@ class MainWindow(QMainWindow):
 
         toolbar.addSeparator()
 
+        # 表示モード切替
+        day_view_action = QAction("日表示", self)
+        day_view_action.triggered.connect(lambda: self.change_view_mode('day'))
+        toolbar.addAction(day_view_action)
+
+        week_view_action = QAction("週表示", self)
+        week_view_action.triggered.connect(lambda: self.change_view_mode('week'))
+        toolbar.addAction(week_view_action)
+
+        month_view_action = QAction("月表示", self)
+        month_view_action.triggered.connect(lambda: self.change_view_mode('month'))
+        toolbar.addAction(month_view_action)
+
+        toolbar.addSeparator()
+
         # 更新
         refresh_action = QAction("更新", self)
         refresh_action.triggered.connect(self.refresh_view)
@@ -338,6 +353,12 @@ class MainWindow(QMainWindow):
     def add_child_task(self, parent_id: int):
         """子タスク追加"""
         self.add_new_task(parent_id=parent_id)
+
+    def change_view_mode(self, mode: str):
+        """表示モードを変更"""
+        self.gantt_chart.set_view_mode(mode)
+        mode_name = {'day': '日', 'week': '週', 'month': '月'}
+        self.statusBar().showMessage(f"表示モード: {mode_name.get(mode, mode)}")
 
     def edit_task(self, task_id: int):
         """タスク編集"""

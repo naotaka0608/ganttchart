@@ -24,6 +24,9 @@ class GanttChartWidget(QGraphicsView):
         self.dependencies: List[TaskDependency] = []
         self.task_bars: Dict[int, QGraphicsRectItem] = {}  # task_id -> bar
 
+        # 表示モード: 'day', 'week', 'month'
+        self.view_mode = 'day'
+
         # 設定
         self.row_height = 50
         self.day_width = 40
@@ -55,6 +58,26 @@ class GanttChartWidget(QGraphicsView):
         # 右クリックメニュー
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.customContextMenuRequested.connect(self.show_context_menu)
+
+    def set_view_mode(self, mode: str):
+        """表示モードを設定 ('day', 'week', 'month')"""
+        if mode not in ['day', 'week', 'month']:
+            return
+
+        self.view_mode = mode
+
+        # モードに応じて幅を調整
+        if mode == 'day':
+            self.day_width = 40
+        elif mode == 'week':
+            self.day_width = 30
+        elif mode == 'month':
+            self.day_width = 10
+
+        # 再描画
+        if self.tasks:
+            self.scene.clear()
+            self.draw_chart()
 
     def load_tasks(self, tasks: List[Task], dependencies: List[TaskDependency] = None):
         """タスクをガントチャートに読み込み"""
@@ -135,7 +158,15 @@ class GanttChartWidget(QGraphicsView):
         if not self.min_date:
             return
 
-        # 日付ヘッダー
+        if self.view_mode == 'day':
+            self._draw_background_day()
+        elif self.view_mode == 'week':
+            self._draw_background_week()
+        elif self.view_mode == 'month':
+            self._draw_background_month()
+
+    def _draw_background_day(self):
+        """日単位の背景を描画"""
         current_date = self.min_date
         x = self.left_margin
 
@@ -165,6 +196,101 @@ class GanttChartWidget(QGraphicsView):
 
             current_date += timedelta(days=1)
             x += self.day_width
+
+    def _draw_background_week(self):
+        """週単位の背景を描画"""
+        current_date = self.min_date
+        # 週の始まり（月曜日）に調整
+        days_to_monday = current_date.weekday()
+        current_week_start = current_date - timedelta(days=days_to_monday)
+        x = self.left_margin
+
+        while current_week_start <= self.max_date:
+            week_end = current_week_start + timedelta(days=6)
+
+            # 週の範囲のテキスト
+            text_str = f"{current_week_start.strftime('%m/%d')}-{week_end.strftime('%m/%d')}"
+            text = QGraphicsTextItem(text_str)
+            text.setPos(x, 5)
+            text.setDefaultTextColor(QColor(100, 100, 100))
+            font = text.font()
+            font.setPointSize(9)
+            text.setFont(font)
+            self.scene.addItem(text)
+
+            # グリッド線（週ごと）
+            line = QGraphicsLineItem(x, self.top_margin, x, self.top_margin + 1000)
+            line.setPen(QPen(QColor(200, 200, 200), 2))
+            line.setOpacity(0.7)
+            self.scene.addItem(line)
+
+            # 日ごとの薄いグリッド線
+            for day in range(7):
+                day_date = current_week_start + timedelta(days=day)
+                if day_date > self.max_date:
+                    break
+                day_x = x + day * self.day_width
+
+                # 薄いグリッド線
+                if day > 0:
+                    day_line = QGraphicsLineItem(day_x, self.top_margin, day_x, self.top_margin + 1000)
+                    day_line.setPen(QPen(QColor(240, 240, 240), 1))
+                    day_line.setOpacity(0.3)
+                    self.scene.addItem(day_line)
+
+            current_week_start += timedelta(days=7)
+            x += 7 * self.day_width
+
+    def _draw_background_month(self):
+        """月単位の背景を描画"""
+        current_date = self.min_date
+        # 月の始まりに調整
+        current_month_start = date(current_date.year, current_date.month, 1)
+        x = self.left_margin
+
+        while current_month_start <= self.max_date:
+            # 月の最終日を取得
+            if current_month_start.month == 12:
+                next_month = date(current_month_start.year + 1, 1, 1)
+            else:
+                next_month = date(current_month_start.year, current_month_start.month + 1, 1)
+            month_end = next_month - timedelta(days=1)
+
+            # 月のテキスト
+            text_str = current_month_start.strftime("%Y/%m")
+            text = QGraphicsTextItem(text_str)
+            text.setPos(x, 5)
+            text.setDefaultTextColor(QColor(100, 100, 100))
+            font = text.font()
+            font.setPointSize(10)
+            text.setFont(font)
+            self.scene.addItem(text)
+
+            # グリッド線（月ごと）
+            line = QGraphicsLineItem(x, self.top_margin, x, self.top_margin + 1000)
+            line.setPen(QPen(QColor(180, 180, 180), 2))
+            line.setOpacity(0.8)
+            self.scene.addItem(line)
+
+            # 月の日数
+            days_in_month = (month_end - current_month_start).days + 1
+
+            # 週ごとの薄いグリッド線
+            week_start = current_month_start
+            week_x = x
+            while week_start <= month_end:
+                if week_start > current_month_start:
+                    week_line = QGraphicsLineItem(week_x, self.top_margin, week_x, self.top_margin + 1000)
+                    week_line.setPen(QPen(QColor(230, 230, 230), 1))
+                    week_line.setOpacity(0.4)
+                    self.scene.addItem(week_line)
+
+                week_start += timedelta(days=7)
+                week_x += 7 * self.day_width
+
+            # 次の月へ
+            current_month_start = next_month
+            x += days_in_month * self.day_width
 
     def draw_task_bar(self, task: Task, row: int):
         """タスクバーを描画"""

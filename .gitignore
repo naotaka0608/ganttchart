@@ -38,6 +38,9 @@ env/
 *~
 .DS_Store
 
+# Claude Code settings
+.claude/settings.local.json
+
 # Database
 *.db
 *.sqlite
@@ -55,3 +58,4 @@ Thumbs.db
 *.db-journal
 *.db-wal
 *.db-shm
+null
