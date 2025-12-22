@@ -1,5 +1,5 @@
 from PySide6.QtWidgets import (QTreeWidget, QTreeWidgetItem, QMenu, QInputDialog,
-                               QMessageBox, QHeaderView)
+                               QMessageBox, QHeaderView, QTreeWidgetItemIterator)
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QAction, QDropEvent
 from typing import Dict, List, Optional
@@ -44,6 +44,15 @@ class TaskTreeWidget(QTreeWidget):
                 height: 60px;
             }
         """)
+
+        # スクロールモードをピクセル単位に設定（ガントチャートと同期するため）
+        self.setVerticalScrollMode(QTreeWidget.ScrollMode.ScrollPerPixel)
+
+        # スムーズスクロールを有効化
+        self.verticalScrollBar().setSingleStep(10)
+
+        # 垂直スクロールバーを非表示（ガントチャートのスクロールバーで制御）
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
 
         # ドラッグ&ドロップ有効化
         self.setDragEnabled(True)

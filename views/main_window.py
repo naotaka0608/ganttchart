@@ -149,6 +149,7 @@ class MainWindow(QMainWindow):
         self.current_project: Optional[Project] = None
         self.current_tasks = []
         self.is_initial_load = True  # 初回読み込みフラグ
+        self.syncing_scroll = False  # スクロール同期中フラグ
         self.setup_ui()
         self.load_or_create_project()
 
@@ -196,11 +197,17 @@ class MainWindow(QMainWindow):
         splitter.addWidget(self.gantt_chart)
 
         # 垂直スクロールバーを同期
+        # 相互に値を同期（無限ループを防ぐため、blockSignalsは使わずsetValueで対応）
         self.task_tree.verticalScrollBar().valueChanged.connect(
-            self.gantt_chart.verticalScrollBar().setValue
+            lambda value: self.sync_scroll_to_chart(value)
         )
         self.gantt_chart.verticalScrollBar().valueChanged.connect(
-            self.task_tree.verticalScrollBar().setValue
+            lambda value: self.sync_scroll_to_tree(value)
+        )
+
+        # スクロールバーの範囲も同期
+        self.gantt_chart.verticalScrollBar().rangeChanged.connect(
+            self.sync_scrollbar_range
         )
 
         # スプリッター比率
@@ -327,6 +334,31 @@ class MainWindow(QMainWindow):
         # 依存関係
         self.db.create_dependency(task1_id, task2_id, "FS")
         self.db.create_dependency(task2_id, task3_id, "FS")
+
+    def sync_scroll_to_chart(self, value: int):
+        """タスクツリーのスクロールをガントチャートに同期"""
+        if self.syncing_scroll:
+            return
+        self.syncing_scroll = True
+        self.gantt_chart.verticalScrollBar().setValue(value)
+        self.syncing_scroll = False
+
+    def sync_scroll_to_tree(self, value: int):
+        """ガントチャートのスクロールをタスクツリーに同期"""
+        if self.syncing_scroll:
+            return
+        self.syncing_scroll = True
+        self.task_tree.verticalScrollBar().setValue(value)
+        self.syncing_scroll = False
+
+    def sync_scrollbar_range(self, min_val: int, max_val: int):
+        """ガントチャートのスクロールバー範囲をタスクツリーに同期"""
+        # ガントチャートと同じ範囲を設定
+        self.task_tree.verticalScrollBar().setRange(min_val, max_val)
+
+        # ページステップも同期（マウスホイールのスクロール量）
+        chart_page_step = self.gantt_chart.verticalScrollBar().pageStep()
+        self.task_tree.verticalScrollBar().setPageStep(chart_page_step)
 
     def refresh_view(self):
         """ビューを更新"""

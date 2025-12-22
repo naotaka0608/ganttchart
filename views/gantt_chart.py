@@ -55,6 +55,9 @@ class GanttChartWidget(QGraphicsView):
         self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.setDragMode(QGraphicsView.DragMode.NoDrag)  # 手動でドラッグ処理
 
+        # スムーズスクロールを有効化
+        self.verticalScrollBar().setSingleStep(10)
+
         # 背景色を設定
         self.setBackgroundBrush(QBrush(QColor(250, 250, 250)))
 
@@ -741,3 +744,14 @@ class GanttChartWidget(QGraphicsView):
     def get_visible_tasks(self) -> List[Task]:
         """表示中のタスクを取得"""
         return self._flatten_tasks(self.tasks)
+
+    def resizeEvent(self, event):
+        """リサイズイベント"""
+        super().resizeEvent(event)
+        # リサイズ後、スクロールバーの範囲が変更される可能性があるため
+        # rangeChangedシグナルを手動で発火させる
+        from PySide6.QtCore import QTimer
+        QTimer.singleShot(0, lambda: self.verticalScrollBar().rangeChanged.emit(
+            self.verticalScrollBar().minimum(),
+            self.verticalScrollBar().maximum()
+        ))
