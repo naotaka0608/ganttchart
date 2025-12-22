@@ -33,7 +33,7 @@ class GanttChartWidget(QGraphicsView):
         self.row_height = 50
         self.day_width = 40
         self.left_margin = 20
-        self.top_margin = 35
+        self.top_margin = 60  # 日付ヘッダー用に余白を増やす
         self.min_date: Optional[date] = None
         self.max_date: Optional[date] = None
 
@@ -202,16 +202,47 @@ class GanttChartWidget(QGraphicsView):
         current_date = self.min_date
         x = self.left_margin
         today = date.today()
+        last_month = None
 
         while current_date <= self.max_date:
-            # 日付テキスト（全体的に下に配置）
-            text = QGraphicsTextItem(current_date.strftime("%m/%d"))
-            text.setPos(x, 18)  # すべての日付を下に配置
-            text.setDefaultTextColor(QColor(100, 100, 100))
-            font = text.font()
-            font.setPointSize(10)
-            text.setFont(font)
-            self.scene.addItem(text)
+            # 年月の表示（月が変わった時のみ）
+            current_month = current_date.strftime("%Y年%m月")
+            if current_month != last_month:
+                month_text = QGraphicsTextItem(current_month)
+                month_text.setPos(x, 0)
+                month_text.setDefaultTextColor(QColor(80, 80, 80))
+                font = month_text.font()
+                font.setPointSize(10)
+                font.setBold(True)
+                month_text.setFont(font)
+                self.scene.addItem(month_text)
+                last_month = current_month
+
+            # 曜日に応じた色を決定
+            day_color = QColor(100, 100, 100)  # デフォルト（平日）
+            if current_date.weekday() == 5:  # 土曜日
+                day_color = QColor(0, 100, 200)
+            elif current_date.weekday() == 6:  # 日曜日
+                day_color = QColor(200, 0, 0)
+
+            # 日にち（中央揃え）
+            day_text = QGraphicsTextItem(current_date.strftime("%d"))
+            day_text.setPos(x + 8, 20)  # 年月との余白を増やす、中央に配置
+            day_text.setDefaultTextColor(day_color)
+            font = day_text.font()
+            font.setPointSize(9)
+            day_text.setFont(font)
+            self.scene.addItem(day_text)
+
+            # 曜日（日本語・中央揃え）
+            weekday_names = ["月", "火", "水", "木", "金", "土", "日"]
+            weekday_text = QGraphicsTextItem(weekday_names[current_date.weekday()])
+            weekday_text.setPos(x + 9, 35)  # 日にちと揃える
+            weekday_text.setDefaultTextColor(day_color)  # 日にちと同じ色
+            font = weekday_text.font()
+            font.setPointSize(8)
+            weekday_text.setFont(font)
+            self.scene.addItem(weekday_text)
 
             # グリッド線
             line = QGraphicsLineItem(x, self.top_margin, x, self.top_margin + 1000)
@@ -347,9 +378,9 @@ class GanttChartWidget(QGraphicsView):
         line.setZValue(100)  # 他の要素より前面に表示
         self.scene.addItem(line)
 
-        # 「今日」のラベルを追加（日付の上に配置）
+        # 「今日」のラベルを追加（年月の位置に配置）
         today_label = QGraphicsTextItem("今日")
-        today_label.setPos(x + 3, 3)  # 上部に配置
+        today_label.setPos(x - 5, 0)  # 年月と同じ高さ
         today_label.setDefaultTextColor(QColor(244, 67, 54))
         font = today_label.font()
         font.setPointSize(9)
