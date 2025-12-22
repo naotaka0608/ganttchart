@@ -183,6 +183,7 @@ class MainWindow(QMainWindow):
         self.task_tree.task_set_baseline_requested.connect(self.set_baseline)
         self.task_tree.task_clear_baseline_requested.connect(self.clear_baseline)
         self.task_tree.task_order_changed.connect(self.on_task_order_changed)
+        self.task_tree.task_expanded_changed.connect(self.on_task_expanded_changed)
         splitter.addWidget(self.task_tree)
 
         # 右側：ガントチャート
@@ -367,17 +368,18 @@ class MainWindow(QMainWindow):
         # ツリービューを更新
         self.task_tree.load_tasks(self.current_tasks)
 
-        # ツリーと同じ順序でフラット化されたタスクリストを作成
-        def flatten_tasks_in_order(tasks):
-            """タスクを階層順にフラット化"""
+        # ツリーと同じ順序で、展開状態を考慮してフラット化
+        def flatten_tasks_with_expand_state(tasks):
+            """展開されているタスクのみをフラット化"""
             result = []
             for task in tasks:
                 result.append(task)
-                if task.children:
-                    result.extend(flatten_tasks_in_order(task.children))
+                # タスクが展開されている場合のみ子タスクを追加
+                if task.is_expanded and task.children:
+                    result.extend(flatten_tasks_with_expand_state(task.children))
             return result
 
-        flattened_tasks = flatten_tasks_in_order(root_tasks)
+        flattened_tasks = flatten_tasks_with_expand_state(root_tasks)
 
         # ガントチャートを更新（フラット化されたタスクリストを渡す）
         # 初回読み込み時のみ今日の位置にスクロール
@@ -516,7 +518,59 @@ class MainWindow(QMainWindow):
 
         # ビューを更新
         self.refresh_view()
-        self.statusBar().showMessage("タスクの順序を変更しました")
+
+    def on_task_expanded_changed(self, task_id: int, is_expanded: bool):
+        """タスク展開状態変更時"""
+        # データベースに展開状態を保存
+        self.db.update_task(task_id, is_expanded=is_expanded)
+
+        # current_tasksのis_expandedフラグも更新
+        for task in self.current_tasks:
+            if task.id == task_id:
+                task.is_expanded = is_expanded
+                break
+
+        # ガントチャートのみ再描画（ツリーは既に更新済み）
+        self.refresh_gantt_chart()
+
+    def refresh_gantt_chart(self):
+        """ガントチャートのみを再描画"""
+        # 階層構造を再構築
+        for task in self.current_tasks:
+            task.children = []
+
+        task_dict = {t.id: t for t in self.current_tasks}
+        root_tasks = []
+        for task in self.current_tasks:
+            if task.parent_id and task.parent_id != 0 and task.parent_id in task_dict:
+                task_dict[task.parent_id].add_child(task)
+            elif task.parent_id is None or task.parent_id == 0:
+                root_tasks.append(task)
+
+        root_tasks.sort(key=lambda t: t.sort_order)
+        for task in root_tasks:
+            task.sort_children()
+
+        # 展開状態を考慮してフラット化
+        def flatten_tasks_with_expand_state(tasks):
+            """展開されているタスクのみをフラット化"""
+            result = []
+            for task in tasks:
+                result.append(task)
+                # タスクが展開されている場合のみ子タスクを追加
+                if task.is_expanded and task.children:
+                    result.extend(flatten_tasks_with_expand_state(task.children))
+            return result
+
+        flattened_tasks = flatten_tasks_with_expand_state(root_tasks)
+
+        # 依存関係を読み込み
+        from models import TaskDependency
+        dep_rows = self.db.get_all_dependencies(self.current_project.id)
+        dependencies = [TaskDependency.from_db_row(row) for row in dep_rows]
+
+        # ガントチャートを更新
+        self.gantt_chart.load_tasks(flattened_tasks, dependencies, scroll_to_today=False)
 
     def export_to_excel(self):
         """タスクリストとガントチャートをExcelファイルにエクスポート"""

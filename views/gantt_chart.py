@@ -393,7 +393,7 @@ class GanttChartWidget(QGraphicsView):
         """タスクバーを描画"""
         # 位置計算
         start_x = self.left_margin + (task.start_date - self.min_date).days * self.day_width
-        y = self.top_margin + row * self.row_height * 1.34 + 5
+        y = self.top_margin + row * self.row_height * 1.35 + 18
         width = task.duration_days * self.day_width
         height = self.row_height - 10
 

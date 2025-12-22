@@ -18,6 +18,7 @@ class TaskTreeWidget(QTreeWidget):
     task_set_baseline_requested = Signal(int)  # task_id
     task_clear_baseline_requested = Signal(int)  # task_id
     task_order_changed = Signal()  # タスク順序変更
+    task_expanded_changed = Signal(int, bool)  # task_id, is_expanded
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -123,15 +124,15 @@ class TaskTreeWidget(QTreeWidget):
         """アイテム展開時"""
         task_id = item.data(0, Qt.ItemDataRole.UserRole)
         if task_id:
-            # データベースに展開状態を保存
-            self.task_updated.emit()
+            # 展開状態変更シグナルを発火
+            self.task_expanded_changed.emit(task_id, True)
 
     def on_item_collapsed(self, item: QTreeWidgetItem):
         """アイテム折りたたみ時"""
         task_id = item.data(0, Qt.ItemDataRole.UserRole)
         if task_id:
-            # データベースに折りたたみ状態を保存
-            self.task_updated.emit()
+            # 折りたたみ状態変更シグナルを発火
+            self.task_expanded_changed.emit(task_id, False)
 
     def show_context_menu(self, position):
         """右クリックメニュー表示"""
