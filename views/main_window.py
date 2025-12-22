@@ -194,6 +194,14 @@ class MainWindow(QMainWindow):
         self.gantt_chart.task_delete_requested.connect(self.on_task_deleted)
         splitter.addWidget(self.gantt_chart)
 
+        # 垂直スクロールバーを同期
+        self.task_tree.verticalScrollBar().valueChanged.connect(
+            self.gantt_chart.verticalScrollBar().setValue
+        )
+        self.gantt_chart.verticalScrollBar().valueChanged.connect(
+            self.task_tree.verticalScrollBar().setValue
+        )
+
         # スプリッター比率
         splitter.setSizes([350, 850])
 
@@ -328,6 +336,9 @@ class MainWindow(QMainWindow):
         task_rows = self.db.get_tasks_by_project(self.current_project.id)
         self.current_tasks = [Task.from_db_row(row) for row in task_rows]
 
+        # sort_orderでソート
+        self.current_tasks.sort(key=lambda t: t.sort_order)
+
         # 階層構造を構築（childrenリストをクリア）
         for task in self.current_tasks:
             task.children = []
@@ -338,8 +349,15 @@ class MainWindow(QMainWindow):
         for task in self.current_tasks:
             if task.parent_id and task.parent_id in task_dict:
                 task_dict[task.parent_id].add_child(task)
-            elif task.parent_id is None:
+            elif task.parent_id is None or task.parent_id == 0:
                 root_tasks.append(task)
+
+        # ルートタスクもsort_orderでソート
+        root_tasks.sort(key=lambda t: t.sort_order)
+
+        # 各タスクの子タスクを再帰的にソート
+        for task in root_tasks:
+            task.sort_children()
 
         # 依存関係を読み込み
         from models import TaskDependency
@@ -349,9 +367,21 @@ class MainWindow(QMainWindow):
         # ツリービューを更新
         self.task_tree.load_tasks(self.current_tasks)
 
-        # ガントチャートを更新（ルートタスクのみ渡す）
+        # ツリーと同じ順序でフラット化されたタスクリストを作成
+        def flatten_tasks_in_order(tasks):
+            """タスクを階層順にフラット化"""
+            result = []
+            for task in tasks:
+                result.append(task)
+                if task.children:
+                    result.extend(flatten_tasks_in_order(task.children))
+            return result
+
+        flattened_tasks = flatten_tasks_in_order(root_tasks)
+
+        # ガントチャートを更新（フラット化されたタスクリストを渡す）
         # 初回読み込み時のみ今日の位置にスクロール
-        self.gantt_chart.load_tasks(root_tasks, dependencies, scroll_to_today=self.is_initial_load)
+        self.gantt_chart.load_tasks(flattened_tasks, dependencies, scroll_to_today=self.is_initial_load)
 
         # 初回読み込みフラグをオフ
         if self.is_initial_load:

@@ -33,6 +33,17 @@ class TaskTreeWidget(QTreeWidget):
         self.setColumnWidth(3, 100)
         self.setColumnWidth(4, 100)
 
+        # ガントチャートの行高さ（50px）に合わせてアイテムの高さを設定
+        # ヘッダーの高さも60pxに設定して、ガントチャートの日付ヘッダーと揃える
+        self.setStyleSheet("""
+            QTreeWidget::item {
+                height: 50px;
+            }
+            QHeaderView::section {
+                height: 60px;
+            }
+        """)
+
         # ドラッグ&ドロップ有効化
         self.setDragEnabled(True)
         self.setAcceptDrops(True)
@@ -60,12 +71,12 @@ class TaskTreeWidget(QTreeWidget):
             task.children = []
 
         # 親子関係を構築
-        root_tasks = [t for t in tasks if t.parent_id is None]
+        root_tasks = [t for t in tasks if t.parent_id is None or t.parent_id == 0]
         task_dict = {t.id: t for t in tasks}
 
         # 子タスクを親に追加
         for task in tasks:
-            if task.parent_id and task.parent_id in task_dict:
+            if task.parent_id and task.parent_id != 0 and task.parent_id in task_dict:
                 task_dict[task.parent_id].add_child(task)
 
         # ツリーに追加

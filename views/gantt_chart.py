@@ -33,7 +33,7 @@ class GanttChartWidget(QGraphicsView):
         self.row_height = 50
         self.day_width = 40
         self.left_margin = 20
-        self.top_margin = 60  # 日付ヘッダー用に余白を増やす
+        self.top_margin = 70  # 日付ヘッダー用に余白を増やす
         self.min_date: Optional[date] = None
         self.max_date: Optional[date] = None
 
@@ -153,10 +153,10 @@ class GanttChartWidget(QGraphicsView):
         # 今日の線を描画
         self.draw_today_line()
 
-        # タスクバー
+        # タスクバー（既にフラット化されたリストが渡される）
         row = 0
         task_rows = {}
-        for task in self._flatten_tasks(self.tasks):
+        for task in self.tasks:
             task_rows[task.id] = row
             self.draw_task_bar(task, row)
             row += 1
@@ -393,7 +393,7 @@ class GanttChartWidget(QGraphicsView):
         """タスクバーを描画"""
         # 位置計算
         start_x = self.left_margin + (task.start_date - self.min_date).days * self.day_width
-        y = self.top_margin + row * self.row_height + 5
+        y = self.top_margin + row * self.row_height * 1.34 + 5
         width = task.duration_days * self.day_width
         height = self.row_height - 10
 

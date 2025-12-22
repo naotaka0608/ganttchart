@@ -106,6 +106,12 @@ class Task:
         """子タスクを追加"""
         self.children.append(child)
 
+    def sort_children(self):
+        """子タスクをsort_orderでソートし、再帰的に孫タスクもソート"""
+        self.children.sort(key=lambda t: t.sort_order)
+        for child in self.children:
+            child.sort_children()
+
 
 @dataclass
 class TaskDependency:
