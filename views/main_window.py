@@ -2,11 +2,12 @@ from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                                QSplitter, QToolBar, QStatusBar, QDialog,
                                QDialogButtonBox, QFormLayout, QLineEdit,
                                QDateEdit, QSpinBox, QCheckBox, QTextEdit,
-                               QMessageBox, QMenu, QPushButton, QColorDialog)
+                               QMessageBox, QMenu, QPushButton, QColorDialog,
+                               QListWidget, QListWidgetItem, QLabel)
 from PySide6.QtCore import Qt, QDate
 from PySide6.QtGui import QAction, QColor
 from datetime import date, timedelta
-from typing import Optional
+from typing import Optional, List
 
 from database import DatabaseManager
 from models import Task, Project
@@ -18,10 +19,13 @@ from .styles import MAIN_STYLE
 class TaskDialog(QDialog):
     """タスク編集ダイアログ"""
 
-    def __init__(self, parent=None, task: Optional[Task] = None, parent_task: Optional[Task] = None):
+    def __init__(self, parent=None, task: Optional[Task] = None, parent_task: Optional[Task] = None,
+                 all_tasks: Optional[List[Task]] = None, db: Optional[DatabaseManager] = None):
         super().__init__(parent)
         self.task = task
         self.parent_task = parent_task
+        self.all_tasks = all_tasks or []
+        self.db = db
         self.selected_color = None
         if task and task.color:
             self.selected_color = task.color
@@ -103,6 +107,42 @@ class TaskDialog(QDialog):
             self.assignee_edit.setText(self.task.assignee or "")
         layout.addRow("担当者:", self.assignee_edit)
 
+        # 先行タスク（依存関係）- タスク編集時のみ表示
+        if self.task and self.db:
+            # 先行タスクラベル
+            predecessor_label = QLabel("先行タスク:")
+            layout.addRow(predecessor_label)
+
+            # 先行タスクリスト
+            self.predecessor_list = QListWidget()
+            self.predecessor_list.setMaximumHeight(100)
+            self.predecessor_list.setSelectionMode(QListWidget.SelectionMode.MultiSelection)
+
+            # 既存の先行タスクを取得
+            current_predecessors = []
+            if self.task:
+                predecessors, _ = self.db.get_task_dependencies(self.task.id)
+                current_predecessors = [p['id'] for p in predecessors]
+
+            # 選択可能なタスクを追加（自分自身と子孫タスクは除外）
+            excluded_ids = self._get_excluded_task_ids()
+            for task in self.all_tasks:
+                if task.id not in excluded_ids:
+                    item = QListWidgetItem(f"{task.name} ({task.start_date} ～ {task.end_date})")
+                    item.setData(Qt.ItemDataRole.UserRole, task.id)
+                    self.predecessor_list.addItem(item)
+
+                    # 既存の先行タスクを選択状態にする
+                    if task.id in current_predecessors:
+                        item.setSelected(True)
+
+            layout.addRow(self.predecessor_list)
+
+            # ヘルプテキスト
+            help_text = QLabel("※このタスクより前に完了すべきタスクを選択してください")
+            help_text.setStyleSheet("color: gray; font-size: 9pt;")
+            layout.addRow(help_text)
+
         # ボタン
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
@@ -126,6 +166,21 @@ class TaskDialog(QDialog):
         else:
             self.color_preview.setStyleSheet("background-color: transparent; border: 1px solid #ccc;")
 
+    def _get_excluded_task_ids(self):
+        """先行タスクから除外すべきタスクIDを取得（自分自身と子孫タスク）"""
+        excluded = set()
+        if self.task:
+            excluded.add(self.task.id)
+            # 子孫タスクも除外
+            self._add_descendant_ids(self.task, excluded)
+        return excluded
+
+    def _add_descendant_ids(self, task, excluded_set):
+        """子孫タスクのIDを再帰的に追加"""
+        for child in task.children:
+            excluded_set.add(child.id)
+            self._add_descendant_ids(child, excluded_set)
+
     def get_task_data(self):
         """入力データを取得"""
         return {
@@ -138,6 +193,18 @@ class TaskDialog(QDialog):
             'color': self.selected_color,
             'assignee': self.assignee_edit.text() or None
         }
+
+    def get_selected_predecessors(self):
+        """選択された先行タスクのIDリストを取得"""
+        if not hasattr(self, 'predecessor_list'):
+            return []
+
+        selected_ids = []
+        for item in self.predecessor_list.selectedItems():
+            task_id = item.data(Qt.ItemDataRole.UserRole)
+            if task_id:
+                selected_ids.append(task_id)
+        return selected_ids
 
 
 class MainWindow(QMainWindow):
@@ -467,7 +534,7 @@ class MainWindow(QMainWindow):
         if not task:
             return
 
-        dialog = TaskDialog(self, task=task)
+        dialog = TaskDialog(self, task=task, all_tasks=self.current_tasks, db=self.db)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             data = dialog.get_task_data()
 
@@ -482,6 +549,9 @@ class MainWindow(QMainWindow):
                 color=data['color'],
                 assignee=data['assignee']
             )
+
+            # 依存関係の更新
+            self._update_task_dependencies(task_id, dialog.get_selected_predecessors())
 
             self.refresh_view()
             self.statusBar().showMessage(f"タスク '{data['name']}' を更新しました")
@@ -532,6 +602,23 @@ class MainWindow(QMainWindow):
         task = next((t for t in self.current_tasks if t.id == task_id), None)
         if task:
             self.statusBar().showMessage(f"タスク '{task.name}' のベースラインをクリアしました")
+
+    def _update_task_dependencies(self, task_id: int, new_predecessor_ids: List[int]):
+        """タスクの依存関係を更新"""
+        # 既存の依存関係を取得
+        existing_predecessors, _ = self.db.get_task_dependencies(task_id)
+        existing_ids = {p['id'] for p in existing_predecessors}
+        new_ids = set(new_predecessor_ids)
+
+        # 削除すべき依存関係
+        to_delete = existing_ids - new_ids
+        for pred_id in to_delete:
+            self.db.delete_dependency(pred_id, task_id)
+
+        # 追加すべき依存関係
+        to_add = new_ids - existing_ids
+        for pred_id in to_add:
+            self.db.create_dependency(pred_id, task_id, "FS")
 
     def on_task_deleted(self, task_id: int):
         """タスク削除時"""
